@@ -1,13 +1,17 @@
 // The tool-calling loop
 
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  SchemaType,
+  type Tool,
+} from "@google/generative-ai";
 import { env } from "../config/env.js";
 import { listPods, getPodLogs, describePod, queryLoki } from "../tools/k8s.js";
 
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 const MAX_TURNS = 5;
 
-const tools = [
+const tools: Tool[] = [
   {
     functionDeclarations: [
       {
