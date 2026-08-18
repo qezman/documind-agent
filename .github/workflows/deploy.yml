@@ -1,0 +1,49 @@
+name: Build and Deploy Agent
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::332130072211:role/documind-dev-github-actions-role
+          aws-region: us-east-1
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/documind-agent:${{ github.sha }} .
+          docker push $ECR_REGISTRY/documind-agent:${{ github.sha }}
+
+      - name: Checkout gitops repo
+        uses: actions/checkout@v4
+        with:
+          repository: qezman/documind-gitops
+          token: ${{ secrets.GITOPS_REPO_TOKEN }}
+          path: gitops
+
+      - name: Patch deployment image
+        run: |
+          cd gitops
+          sed -i "s|documind-agent:.*|documind-agent:${{ github.sha }}|" manifests/agent/deployment.yaml
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add manifests/agent/deployment.yaml
+          git commit -m "chore: deploy agent ${{ github.sha }}"
+          git push
